@@ -5,7 +5,7 @@ var QrisNotificationModel = require('../../../../models/qris_notification');
 var PushNotificationModel = require('../../../../models/push_notification');
 var hash = require('../../../../lib/helper/hash');
 
-function save_log(order_id, nominal, request, response){
+function save_log(order_id, nominal, request, response) {
     //Save the request to Log
     const log_request = new QrisNotificationModel({
         transaction_id: order_id,
@@ -18,7 +18,7 @@ function save_log(order_id, nominal, request, response){
     log_request.save();
 }
 
-async function push_notification(data, client_code, client_secret, client_notification_url){
+async function push_notification(data, client_code, client_secret, client_notification_url) {
     //Save the push notification
     const notification = new PushNotificationModel({
         client_transaction_id: data.additional_field.client_transaction_id,
@@ -45,19 +45,19 @@ async function push_notification(data, client_code, client_secret, client_notifi
             method: 'POST'
         }
     );
-    
+
     notification.response_status_code = response.status;
     notification.save();
 }
 
-export default async function handler(req, res){
+export default async function handler(req, res) {
     if (req.method === 'POST') {
         const h_cid = req.headers['client-id'];
         const h_skey = req.headers['signature-key'];
 
         const signature = hash.generate_signature_yukk(req.body, yukk_secret);
-        
-        if(signature == h_skey){
+
+        if (signature == h_skey) {
             const order_id = req.body.order_id;
             const nominal = req.body.nominal;
             const additional_field = req.body.additional_field;
@@ -76,13 +76,13 @@ export default async function handler(req, res){
 
             //Valid
             const docTransaction = await TransactionModel.findById(order_id).exec();
-            if(docTransaction){
+            if (docTransaction) {
                 //Try Parse
                 var obj_additional_field = {};
 
-                if(additional_field == null || additional_field == ""){
-    
-                }else{
+                if (additional_field == null || additional_field == "") {
+                    return;
+                } else {
                     try {
                         obj_additional_field = JSON.parse(additional_field);
                     } catch (e) {
@@ -96,7 +96,7 @@ export default async function handler(req, res){
                 }).exec();
 
                 if (docClient) {
-                    var yukk_id = process.env.NEXT_PUBLIC_CLIENT_ID_STAGING;
+                    // var yukk_id = process.env.NEXT_PUBLIC_CLIENT_ID_STAGING;
                     var yukk_secret = process.env.NEXT_PUBLIC_CLIENT_SECRET_STAGING;
                     var client_secret = null;
                     var client_code = obj_additional_field.client_code;
@@ -107,12 +107,12 @@ export default async function handler(req, res){
                         client_secret = docClient.client_secret_development;
                     } else if (docClient.client_is_development == 0 && docClient.client_is_production == 1) {
                         //Production
-                        yukk_id = docClient.client_qris_dynamic_mid;
+                        // yukk_id = docClient.client_qris_dynamic_mid;
                         yukk_secret = docClient.client_qris_dynamic_mid;
                         client_secret = docClient.client_secret_production;
                     }
 
-                    if(docTransaction.transaction_status == 0){
+                    if (docTransaction.transaction_status == 0) {
                         docTransaction.transaction_notification_response = "OK";
                         docTransaction.transaction_status = 1;
                         docTransaction.additional_field = obj_additional_field;
@@ -121,13 +121,13 @@ export default async function handler(req, res){
                         docTransaction.payment_method = payment_method;
                         docTransaction.transaction_time = transaction_time;
                         docTransaction.save();
-    
+
                         save_log(order_id, nominal, request, docTransaction.transaction_notification_response);
-    
+
                         res.status(200).send(docTransaction.transaction_notification_response);
-    
+
                         push_notification(docTransaction, client_code, client_secret, client_notification_url);
-                    }else if(docTransaction.transaction_status == 1){
+                    } else if (docTransaction.transaction_status == 1) {
                         docTransaction.transaction_notification_response = "Transaction already paid";
                         docTransaction.additional_field = obj_additional_field;
                         docTransaction.rrn = rrn;
@@ -135,13 +135,13 @@ export default async function handler(req, res){
                         docTransaction.payment_method = payment_method;
                         docTransaction.transaction_time = transaction_time;
                         docTransaction.save();
-    
+
                         save_log(order_id, nominal, request, docTransaction.transaction_notification_response);
-    
+
                         res.status(200).send(docTransaction.transaction_notification_response);
-    
+
                         push_notification(docTransaction, client_code, client_secret, client_notification_url);
-                    }else{
+                    } else {
                         docTransaction.transaction_notification_response = "Transaction already processed";
                         docTransaction.additional_field = obj_additional_field;
                         docTransaction.rrn = rrn;
@@ -149,31 +149,30 @@ export default async function handler(req, res){
                         docTransaction.payment_method = payment_method;
                         docTransaction.transaction_time = transaction_time;
                         docTransaction.save();
-    
+
                         save_log(order_id, nominal, request, docTransaction.transaction_notification_response);
-    
+
                         res.status(200).send(docTransaction.transaction_notification_response);
-    
+
                         push_notification(docTransaction, client_code, client_secret, client_notification_url);
                     }
-                }else {
+                } else {
                     res.status(400).json({
                         ok: 0, message: "Client Code Not Found"
                     });
                     return; //Stop The Code
                 }
-            }else{
-                save_log(order_id, nominal, request, "Transaction : "+order_id+" Not Found");
+            } else {
+                save_log(order_id, nominal, request, "Transaction : " + order_id + " Not Found");
 
-                res.status(400).send("Transaction : "+order_id+" Not Found");
+                res.status(400).send("Transaction : " + order_id + " Not Found");
             }
-        }else{
+        } else {
             res.status(400).send("Signature Not Matched");
         }
     } else {
-        res.status(400).json({ 
-            ok: 0, message: "Unauthorized" 
+        res.status(400).json({
+            ok: 0, message: "Unauthorized"
         })
     }
 }
-  

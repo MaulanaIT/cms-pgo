@@ -1,9 +1,10 @@
 // Next.js API route support: https://nextjs.org/docs/api-routes/introduction
+var ClientModel = require('../../../../models/client');
 var TransactionModel = require('../../../../models/transaction');
 var QrisNotificationModel = require('../../../../models/qris_notification');
 var hash = require('../../../../lib/helper/hash');
 
-function save_log(order_id, nominal, request, response){
+function save_log(order_id, nominal, request, response) {
     //Save the request to Log
     const log_request = new QrisNotificationModel({
         transaction_id: order_id,
@@ -16,7 +17,7 @@ function save_log(order_id, nominal, request, response){
     log_request.save();
 }
 
-export default async function handler(req, res){
+export default async function handler(req, res) {
     if (req.method === 'POST') {
         const h_cid = req.headers['client-id'];
         const h_skey = req.headers['signature-key'];
@@ -35,10 +36,10 @@ export default async function handler(req, res){
             yukk_id = docClient.client_qris_static_mid;
             yukk_secret = docClient.client_qris_static_mid;
             is_production = true;
-        }else if(h_cid == yukk_id){
+        } else if (h_cid == yukk_id) {
             //Staging Only
-            
-        }else {
+
+        } else {
             res.status(400).json({
                 ok: 0, message: "Client Code Not Found"
             });
@@ -46,8 +47,8 @@ export default async function handler(req, res){
         }
 
         const signature = hash.generate_signature_yukk(req.body, yukk_secret);
-        
-        if(signature == h_skey){
+
+        if (signature == h_skey) {
             const nominal = req.body.nominal;
             const rrn = req.body.rrn;
             const paid_by = req.body.paid_by;
@@ -82,13 +83,12 @@ export default async function handler(req, res){
             save_log(null, nominal, request, "OK");
 
             res.status(200).send("OK");
-        }else{
+        } else {
             res.status(400).send("Signature Not Matched");
         }
     } else {
-        res.status(400).json({ 
-            ok: 0, message: "Unauthorized" 
+        res.status(400).json({
+            ok: 0, message: "Unauthorized"
         })
     }
 }
-  
